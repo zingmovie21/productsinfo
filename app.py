@@ -1,11 +1,17 @@
 from flask import Flask, request, jsonify
 from pymongo import MongoClient
 from datetime import datetime
+import os
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 app = Flask(__name__)
 
-# MongoDB connection (replace with your connection string)
-client = MongoClient('mongodb+srv://product:p3bFsXh9iwGGvxsv@product.fw3hb.mongodb.net/?retryWrites=true&w=majority&appName=Product')
+# MongoDB connection using environment variable
+mongo_uri = os.environ.get('MONGO_URI')
+client = MongoClient(mongo_uri)
 db = client['test']  # Replace 'test' with your actual database name
 transactions_collection = db['producttransactions']
 
@@ -28,7 +34,7 @@ def get_transactions():
     transactions = transactions_collection.find(query).skip(skip).limit(per_page)
     result = [{"id": t.get('id', ''), "title": t.get('title', ''), 
                "price": t.get('price', 0), "description": t.get('description', ''), 
-               "category": t.get('category', ''), "image": t.get('image', ''),
+               "category": t.get('category', ''), "image": t.get('image', ''), 
                "sold": t.get('sold', False), "dateOfSale": t.get('dateOfSale', 'N/A')}
               for t in list(transactions)]
     return jsonify(result)
