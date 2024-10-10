@@ -56,7 +56,23 @@ async def check_connection():
         return {"status": "Connected", "sample_data": transactions}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
+@app.get("/", response_class=HTMLResponse)
+async def show_info():
+    return """
+    <html>
+        <head>
+            <title>Aditya Devarshi</title>
+        </head>
+        <body>
+            <h1>Hello, I am Aditya Devarshi</h1>
+            <p>You can find more about me at: 
+                <a href="https://www.adityadevarshi.online/#/" target="_blank">
+                    https://www.adityadevarshi.online
+                </a>
+            </p>
+        </body>
+    </html>
+    """
 # List Transactions API (GET)
 @app.get("/transactions", response_model=List[Transaction], dependencies=[Depends(get_api_key)])
 async def list_transactions(
