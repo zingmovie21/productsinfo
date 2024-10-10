@@ -1,126 +1,178 @@
-from flask import Flask, request, jsonify
-from pymongo import MongoClient
+from fastapi import FastAPI, HTTPException, Query, Depends
+from fastapi.security.api_key import APIKeyHeader, APIKey
+from motor.motor_asyncio import AsyncIOMotorClient
+from pydantic import BaseModel
+from typing import List, Optional
 from datetime import datetime
-import os
 from dotenv import load_dotenv
+import os
 
 # Load environment variables from .env file
 load_dotenv()
 
-app = Flask(__name__)
+app = FastAPI()
 
-# MongoDB connection using environment variable
-mongo_uri = os.environ.get('MONGO_URI')
-client = MongoClient(mongo_uri)
-db = client['test']  # Replace 'test' with your actual database name
-transactions_collection = db['producttransactions']
+# MongoDB connection details from environment variables
+MONGODB_URL = os.getenv("MONGODB_URL")
+DATABASE_NAME = "test"
+COLLECTION_NAME = "producttransactions"
 
-# API to list all transactions with search and pagination
-@app.route('/api/transactions', methods=['GET'])
-def get_transactions():
-    search = request.args.get('search', '')
-    page = int(request.args.get('page', 1))
-    per_page = int(request.args.get('per_page', 10))
-    skip = (page - 1) * per_page
+# MongoDB client
+client = AsyncIOMotorClient(MONGODB_URL)
+db = client[DATABASE_NAME]
+collection = db[COLLECTION_NAME]
 
-    query = {}
-    if search:
-        query = {"$or": [
-            {"title": {"$regex": search, "$options": "i"}},
-            {"description": {"$regex": search, "$options": "i"}},
-            {"price": {"$regex": search, "$options": "i"}}
-        ]}
+# Model for Transactions
+class Transaction(BaseModel):
+    id: int
+    title: str
+    price: float
+    description: str
+    category: str
+    image: str
+    sold: bool
+    dateOfSale: datetime
 
-    transactions = transactions_collection.find(query).skip(skip).limit(per_page)
-    result = [{"id": t.get('id', ''), "title": t.get('title', ''), 
-               "price": t.get('price', 0), "description": t.get('description', ''), 
-               "category": t.get('category', ''), "image": t.get('image', ''), 
-               "sold": t.get('sold', False), "dateOfSale": t.get('dateOfSale', 'N/A')}
-              for t in list(transactions)]
-    return jsonify(result)
+# API Key Authentication
+API_KEY_NAME = "access_token"
+API_KEY = os.getenv("API_KEY")  # Load API key from environment
 
-# API for statistics (Total sales, sold/not sold items)
-@app.route('/api/statistics', methods=['GET'])
-def get_statistics():
-    month = request.args.get('month', datetime.now().strftime('%Y-%m'))
-    start_date = datetime.strptime(f"{month}-01", "%Y-%m-%d")
-    end_date = datetime.strptime(f"{month}-01", "%Y-%m-%d").replace(month=start_date.month + 1)
+api_key_header = APIKeyHeader(name=API_KEY_NAME, auto_error=True)
 
-    total_sales = transactions_collection.aggregate([
-        {"$match": {"dateOfSale": {"$gte": start_date, "$lt": end_date}}},
-        {"$group": {"_id": None, "total_sales": {"$sum": "$price"}}}
-    ])
+async def get_api_key(api_key_header: str = Depends(api_key_header)):
+    if api_key_header == API_KEY:
+        return api_key_header
+    else:
+        raise HTTPException(status_code=403, detail="Could not validate credentials")
 
-    total_sold = transactions_collection.count_documents({"dateOfSale": {"$gte": start_date, "$lt": end_date}, "sold": True})
-    not_sold = transactions_collection.count_documents({"dateOfSale": {"$gte": start_date, "$lt": end_date}, "sold": False})
+# Endpoint to check MongoDB connection and retrieve data
+@app.get("/check-connection", dependencies=[Depends(get_api_key)])
+async def check_connection():
+    try:
+        transactions = await collection.find().to_list(10)
+        # Convert ObjectId to string
+        for transaction in transactions:
+            transaction["_id"] = str(transaction["_id"])
+        return {"status": "Connected", "sample_data": transactions}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
-    return jsonify({
-        "total_sales": list(total_sales)[0]['total_sales'] if total_sales else 0,
-        "total_sold": total_sold,
-        "not_sold": not_sold
-    })
+# List Transactions API (GET)
+@app.get("/transactions", response_model=List[Transaction], dependencies=[Depends(get_api_key)])
+async def list_transactions(
+    search: Optional[str] = None,
+    page: int = 1,
+    page_size: int = 10
+):
+    try:
+        query = {}
+        if search:
+            query = {
+                "$or": [
+                    {"title": {"$regex": search, "$options": "i"}},
+                    {"description": {"$regex": search, "$options": "i"}},
+                    {"price": {"$eq": float(search)}}
+                ]
+            }
+        skip = (page - 1) * page_size
+        transactions = await collection.find(query).skip(skip).limit(page_size).to_list(page_size)
+        # Convert ObjectId to string
+        for transaction in transactions:
+            transaction["_id"] = str(transaction["_id"])
+        return transactions
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
-# API for bar chart (Price range distribution)
-@app.route('/api/bar-chart', methods=['GET'])
-def get_bar_chart():
-    month = request.args.get('month', datetime.now().strftime('%Y-%m'))
-    start_date = datetime.strptime(f"{month}-01", "%Y-%m-%d")
-    end_date = datetime.strptime(f"{month}-01", "%Y-%m-%d").replace(month=start_date.month + 1)
+# Statistics API (GET)
+@app.get("/statistics", dependencies=[Depends(get_api_key)])
+async def get_statistics(month: int, year: int):
+    try:
+        start_date = datetime(year, month, 1)
+        if month == 12:
+            end_date = datetime(year + 1, 1, 1)
+        else:
+            end_date = datetime(year, month + 1, 1)
+        
+        total_sales = await collection.aggregate([
+            {"$match": {"sold": True, "dateOfSale": {"$gte": start_date, "$lt": end_date}}},
+            {"$group": {"_id": None, "total_sales": {"$sum": "$price"}}}
+        ]).to_list(None)
+        total_sales = total_sales[0]["total_sales"] if total_sales else 0
+        total_items_sold = await collection.count_documents({"sold": True, "dateOfSale": {"$gte": start_date, "$lt": end_date}})
+        total_items_not_sold = await collection.count_documents({"sold": False, "dateOfSale": {"$gte": start_date, "$lt": end_date}})
+        
+        return {
+            "total_sales": total_sales,
+            "total_items_sold": total_items_sold,
+            "total_items_not_sold": total_items_not_sold
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
-    price_ranges = [
-        {"range": "0-100", "min": 0, "max": 100},
-        {"range": "101-200", "min": 101, "max": 200},
-        {"range": "201-300", "min": 201, "max": 300},
-        {"range": "301-400", "min": 301, "max": 400},
-        {"range": "401-500", "min": 401, "max": 500},
-        {"range": "501-600", "min": 501, "max": 600},
-        {"range": "601-700", "min": 601, "max": 700},
-        {"range": "701-800", "min": 701, "max": 800},
-        {"range": "801-900", "min": 801, "max": 900},
-        {"range": "901-above", "min": 901, "max": float('inf')}
-    ]
+# Bar Chart API (GET)
+@app.get("/bar-chart", dependencies=[Depends(get_api_key)])
+async def get_bar_chart(month: int, year: int):
+    try:
+        start_date = datetime(year, month, 1)
+        if month == 12:
+            end_date = datetime(year + 1, 1, 1)
+        else:
+            end_date = datetime(year, month + 1, 1)
+        
+        pipeline = [
+            {"$match": {"sold": True, "dateOfSale": {"$gte": start_date, "$lt": end_date}}},
+            {"$bucket": {
+                "groupBy": "$price",
+                "boundaries": [0, 100, 200, 300, 400, 500, 600, 700, 800, 900, float('inf')],
+                "default": "Other",
+                "output": {
+                    "count": {"$sum": 1}
+                }
+            }}
+        ]
+        
+        bar_chart_data = await collection.aggregate(pipeline).to_list(None)
+        return bar_chart_data
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
-    result = []
-    for pr in price_ranges:
-        count = transactions_collection.count_documents({
-            "dateOfSale": {"$gte": start_date, "$lt": end_date},
-            "price": {"$gte": pr["min"], "$lt": pr["max"]}
-        })
-        result.append({"range": pr["range"], "count": count})
+# Pie Chart API (GET)
+@app.get("/pie-chart", dependencies=[Depends(get_api_key)])
+async def get_pie_chart(month: int, year: int):
+    try:
+        start_date = datetime(year, month, 1)
+        if month == 12:
+            end_date = datetime(year + 1, 1, 1)
+        else:
+            end_date = datetime(year, month + 1, 1)
+        
+        pipeline = [
+            {"$match": {"dateOfSale": {"$gte": start_date, "$lt": end_date}}},
+            {"$group": {"_id": "$category", "count": {"$sum": 1}}}
+        ]
+        
+        pie_chart_data = await collection.aggregate(pipeline).to_list(None)
+        return pie_chart_data
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
-    return jsonify(result)
+@app.get("/combined-data", dependencies=[Depends(get_api_key)])
+async def get_combined_data(month: int, year: int):
+    try:
+        transactions = await list_transactions(page=1, page_size=10)
+        statistics = await get_statistics(month, year)
+        bar_chart = await get_bar_chart(month, year)
+        pie_chart = await get_pie_chart(month, year)
+        
+        return {
+            "transactions": transactions,
+            "statistics": statistics,
+            "bar_chart": bar_chart,
+            "pie_chart": pie_chart
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
-# API for pie chart (Unique categories)
-@app.route('/api/pie-chart', methods=['GET'])
-def get_pie_chart():
-    month = request.args.get('month', datetime.now().strftime('%Y-%m'))
-    start_date = datetime.strptime(f"{month}-01", "%Y-%m-%d")
-    end_date = datetime.strptime(f"{month}-01", "%Y-%m-%d").replace(month=start_date.month + 1)
-
-    categories = transactions_collection.aggregate([
-        {"$match": {"dateOfSale": {"$gte": start_date, "$lt": end_date}}},
-        {"$group": {"_id": "$category", "count": {"$sum": 1}}}
-    ])
-
-    result = [{"category": c['_id'], "count": c['count']} for c in categories]
-    return jsonify(result)
-
-# API to fetch combined data from all the above APIs
-@app.route('/api/combined-data', methods=['GET'])
-def get_combined_data():
-    month = request.args.get('month', datetime.now().strftime('%Y-%m'))
-
-    transactions = get_transactions().get_json()
-    statistics = get_statistics().get_json()
-    bar_chart = get_bar_chart().get_json()
-    pie_chart = get_pie_chart().get_json()
-
-    return jsonify({
-        "transactions": transactions,
-        "statistics": statistics,
-        "bar_chart": bar_chart,
-        "pie_chart": pie_chart
-    })
-
-if __name__ == '__main__':
-    app.run(debug=True)
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="localhost", port=8000)
