@@ -1,96 +1,24 @@
-name: Setup Chrome Remote Desktop
+name: Window 10
 
-on:
-  push:
-    branches:
-      - main
+on: [push, workflow_dispatch]
 
 jobs:
-  setup:
-    runs-on: ubuntu-latest
+  build:
+
+    runs-on: windows-latest
+    timeout-minutes: 9999
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v2
-
-      - name: Create User
-        run: |
-          username="user"  # Replace with your desired username
-          password="root"  # Replace with your desired password
-
-          echo "Creating User and Setting it up"
-          sudo useradd -m $username
-          sudo adduser $username sudo
-          echo "$username:$password" | sudo chpasswd
-          sudo sed -i 's/\/bin\/sh/\/bin\/bash/g' /etc/passwd
-          echo "User created and configured having username '$username'."
-
-      - name: Install Chrome Remote Desktop and Desktop Environment
-        run: |
-          echo "Installing Chrome Remote Desktop and Desktop Environment"
-          sudo apt update
-          sudo apt install -y wget xfce4 desktop-base xfce4-terminal xscreensaver
-          
-          # Install Chrome Remote Desktop
-          wget https://dl.google.com/linux/direct/chrome-remote-desktop_current_amd64.deb
-          sudo dpkg --install chrome-remote-desktop_current_amd64.deb || sudo apt install -y --fix-broken
-
-          # Configure desktop environment for Chrome Remote Desktop
-          echo "exec /etc/X11/Xsession /usr/bin/xfce4-session" | sudo tee /etc/chrome-remote-desktop-session
-
-          # Optional: Remove gnome-terminal
-          sudo apt remove --assume-yes gnome-terminal
-
-          # Disable lightdm service
-          sudo systemctl disable lightdm.service
-
-      - name: Install Google Chrome
-        run: |
-          echo "Installing Google Chrome"
-          wget https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
-          sudo dpkg --install google-chrome-stable_current_amd64.deb || sudo apt install -y --fix-broken
-
-      - name: Finalize Setup for RDP
-        env:
-          CRP: "DISPLAY= /opt/google/chrome-remote-desktop/start-host --code=\"4/0AVG7fiTmZCP5-LhgGS3-bKgAJVHeaTeMeAnfZOKdfwaaSr_Ktws_xozRX_ffrsyoosBZMw\" --redirect-url=\"https://remotedesktop.google.com/_/oauthredirect\" --name=$(hostname)"  # Replace with your actual authentication code from Google Remote Desktop
-          Pin: 123456  # Replace with your desired PIN (must be >= 6 digits)
-          Autostart: false  # Change to true if you want to autostart the notebook
-        run: |
-          if [ -z "$CRP" ]; then
-            echo "Please enter authcode from the given link"
-            exit 1
-          fi
-
-          if [ ${#Pin} -lt 6 ]; then
-            echo "Enter a pin more or equal to 6 digits"
-            exit 1
-          fi
-
-          echo "Finalizing setup"
-
-          # Add user to chrome-remote-desktop group
-          sudo adduser $username chrome-remote-desktop
-
-          # Start Chrome Remote Desktop with the specified PIN
-          sudo su - $username -c "$CRP --pin=$Pin"
-
-          # Start the Chrome Remote Desktop service
-          sudo service chrome-remote-desktop start
-
-          if [ "$Autostart" = true ]; then
-            echo "Configuring autostart for notebook"
-            mkdir -p /home/$username/.config/autostart
-            cat <<EOL > /home/$username/.config/autostart/colab.desktop
-            [Desktop Entry]
-            Type=Application
-            Name=Colab
-            Exec=sh -c "sensible-browser https://colab.research.google.com/github/PradyumnaKrishna/Colab-Hacks/blob/master/Colab%20RDP/Colab%20RDP.ipynb"
-            Icon=
-            Comment=Open a predefined notebook at session signin.
-            X-GNOME-Autostart-enabled=true
-            EOL
-            chmod +x /home/$username/.config/autostart/colab.desktop
-            chown $username:$username /home/$username/.config
-          fi
-
-          echo "RDP setup completed successfully. Move to https://remotedesktop.google.com/access"
+    - name: Download
+      run: Invoke-WebRequest https://zrok.io/latest/zrok-windows-amd64.zip -OutFile zrok.zip
+    - name: Extract
+      run: Expand-Archive zrok.zip
+    - name: Auth
+      run: .\zrok\zrok.exe auth qAAxE5HHSLcu
+    - name: Enable TS
+      run: Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -name "fDenyTSConnections" -Value 0
+    - run: Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
+    - run: Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -name "UserAuthentication" -Value 1
+    - run: Set-LocalUser -Name "runneradmin" -Password (ConvertTo-SecureString -AsPlainText "@cyb3rking" -Force)
+    - name: Create Tunnel
+      run: .\zrok\zrok.exe tcp 3389
