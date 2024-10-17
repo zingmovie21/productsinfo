@@ -1,4 +1,4 @@
-name: Windows 10 RDP Setup
+name: Windows 10 RDP Setup with Localtonet
 
 on: [push, workflow_dispatch]
 
@@ -9,7 +9,7 @@ jobs:
 
     steps:
       - name: Download Localtonet
-        run: Invoke-WebRequest https://localtonet.com/download/localtonet-win-64.zip -OutFile localtonet.zip
+        run: Invoke-WebRequest https://localtonet.com/download/localtonet-windows-amd64.zip -OutFile localtonet.zip
 
       - name: Extract Localtonet
         run: Expand-Archive localtonet.zip -DestinationPath ./localtonet
@@ -19,12 +19,12 @@ jobs:
         env:
           LOCALTONET_AUTH_TOKEN: "4uSym0JBtVPHTN9ZY7soU8WzDdi6rafkL"  # Your provided token
 
-      - name: Enable RDP
+      - name: Enable RDP and Disable NLA
         run: |
           Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -name "fDenyTSConnections" -Value 0
           Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
-          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -name "UserAuthentication" -Value 1
-          Set-LocalUser -Name "adityaa" -Password (ConvertTo-SecureString -AsPlainText "googleisbest" -Force)
+          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -name "UserAuthentication" -Value 0
+          Set-LocalUser -Name "runneradmin" -Password (ConvertTo-SecureString -AsPlainText "@cyb3rking" -Force)
 
       - name: Start Localtonet RDP Tunnel
         run: .\localtonet\localtonet.exe tcp 3389
