@@ -1,31 +1,50 @@
-name: Windows 10
+name: Localtonet RDP Setup
 
-on: [push, workflow_dispatch]
+on:
+  push:
+    branches:
+      - main
 
 jobs:
-  build:
-
-    runs-on: windows-latest
-    timeout-minutes: 9999
+  setup-localtonet:
+    runs-on: ubuntu-latest
 
     steps:
-    - name: Download Localtonet
-      run: Invoke-WebRequest https://localtonet.com/download/localtonet-win-64.zip -OutFile localtonet.zip
-    
-    - name: Extract Localtonet
-      run: Expand-Archive localtonet.zip
-    
-    - name: Auth with Localtonet
-      run: .\localtonet\localtonet.exe authtoken 7AxEmho0ZR8eTun4cKiMYfC51jqJwsP6p
+      - name: Checkout repository
+        uses: actions/checkout@v2
 
-    - name: Enable TS
-      run: Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -name "fDenyTSConnections" -Value 0
-    
-    - run: Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
-    
-    - run: Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -name "UserAuthentication" -Value 1
-    
-    - run: Set-LocalUser -Name "runneradmin" -Password (ConvertTo-SecureString -AsPlainText "@cyb3rking" -Force)
-    
-    - name: Create Tunnel
-      run: .\localtonet\localtonet.exe tcp 3389
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y unzip curl
+
+      - name: Download Localtonet
+        run: |
+          wget https://localtonet.com/download/localtonet-linux-x64.zip
+          unzip localtonet-linux-x64.zip
+          chmod +x ./localtonet
+
+      - name: Set AuthToken
+        run: |
+          echo "7AxEmho0ZR8eTun4cKiMYfC51jqJwsP6p" > authtoken.txt
+          ./localtonet authtoken $(cat authtoken.txt)
+
+      - name: Fetch Public IP (Server IP)
+        id: fetch_ip
+        run: |
+          PUBLIC_IP=$(curl -s ifconfig.me)
+          echo "Public IP: $PUBLIC_IP"
+          echo "::set-output name=public_ip::$PUBLIC_IP"
+
+      - name: Initialize Tunnel for RDP
+        run: |
+          SERVER_IP=${{ steps.fetch_ip.outputs.public_ip }}
+          ./localtonet tcp --server $SERVER_IP --port 3389 --listen-port 3389
+
+      - name: Display Connection Info
+        run: |
+          echo "Server IP: ${{ steps.fetch_ip.outputs.public_ip }}"
+
+      - name: Display Tunnel Status
+        run: |
+          ./localtonet status
