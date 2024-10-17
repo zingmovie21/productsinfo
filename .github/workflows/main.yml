@@ -1,4 +1,4 @@
-name: Window 10
+name: Windows 10
 
 on: [push, workflow_dispatch]
 
@@ -9,16 +9,23 @@ jobs:
     timeout-minutes: 9999
 
     steps:
-    - name: Download
-      run: Invoke-WebRequest https://github.com/openziti/zrok/releases/download/v0.4.41/zrok_0.4.41_windows_amd64.tar.gz -OutFile zrok.zip
-    - name: Extract
-      run: Expand-Archive zrok.zip
-    - name: Auth
-      run: .\zrok\zrok.exe auth qAAxE5HHSLcu
+    - name: Download Localtonet
+      run: Invoke-WebRequest https://localtonet.com/download/localtonet-win-64.zip -OutFile localtonet.zip
+    
+    - name: Extract Localtonet
+      run: Expand-Archive localtonet.zip
+    
+    - name: Auth with Localtonet
+      run: .\localtonet\localtonet.exe authtoken 0twFLbUc7AeMRqGP13X8B2OkKJCVYuaTxogHhDz4yfpNZ
+
     - name: Enable TS
       run: Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -name "fDenyTSConnections" -Value 0
+    
     - run: Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
+    
     - run: Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -name "UserAuthentication" -Value 1
+    
     - run: Set-LocalUser -Name "runneradmin" -Password (ConvertTo-SecureString -AsPlainText "@cyb3rking" -Force)
+    
     - name: Create Tunnel
-      run: .\zrok\zrok.exe tcp 3389
+      run: .\localtonet\localtonet.exe tcp 3389
