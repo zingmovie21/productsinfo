@@ -13,7 +13,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v2
 
-      - name: Set up User
+      - name: Create User
         run: |
           username="user"  # Replace with your desired username
           password="root"  # Replace with your desired password
@@ -37,9 +37,12 @@ jobs:
 
           # Configure desktop environment for Chrome Remote Desktop
           echo "exec /etc/X11/Xsession /usr/bin/xfce4-session" | sudo tee /etc/chrome-remote-desktop-session
-          
-          # Remove gnome-terminal if installed (optional)
+
+          # Optional: Remove gnome-terminal
           sudo apt remove --assume-yes gnome-terminal
+
+          # Disable lightdm service
+          sudo systemctl disable lightdm.service
 
       - name: Install Google Chrome
         run: |
@@ -49,8 +52,9 @@ jobs:
 
       - name: Finalize Setup for RDP
         env:
-          CRP: "DISPLAY= /opt/google/chrome-remote-desktop/start-host --code="4/0AVG7fiTmZCP5-LhgGS3-bKgAJVHeaTeMeAnfZOKdfwaaSr_Ktws_xozRX_ffrsyoosBZMw" --redirect-url="https://remotedesktop.google.com/_/oauthredirect" --name=$(hostname)"  # Replace with your actual authentication code from Google Remote Desktop
+          CRP: "DISPLAY= /opt/google/chrome-remote-desktop/start-host --code=\"4/0AVG7fiTmZCP5-LhgGS3-bKgAJVHeaTeMeAnfZOKdfwaaSr_Ktws_xozRX_ffrsyoosBZMw\" --redirect-url=\"https://remotedesktop.google.com/_/oauthredirect\" --name=$(hostname)"  # Replace with your actual authentication code from Google Remote Desktop
           Pin: 123456  # Replace with your desired PIN (must be >= 6 digits)
+          Autostart: false  # Change to true if you want to autostart the notebook
         run: |
           if [ -z "$CRP" ]; then
             echo "Please enter authcode from the given link"
@@ -63,7 +67,7 @@ jobs:
           fi
 
           echo "Finalizing setup"
-          
+
           # Add user to chrome-remote-desktop group
           sudo adduser $username chrome-remote-desktop
 
@@ -73,5 +77,20 @@ jobs:
           # Start the Chrome Remote Desktop service
           sudo service chrome-remote-desktop start
 
-      - name: Notify Completion
-        run: echo "RDP setup completed successfully. Move to https://remotedesktop.google.com/access"
+          if [ "$Autostart" = true ]; then
+            echo "Configuring autostart for notebook"
+            mkdir -p /home/$username/.config/autostart
+            cat <<EOL > /home/$username/.config/autostart/colab.desktop
+            [Desktop Entry]
+            Type=Application
+            Name=Colab
+            Exec=sh -c "sensible-browser https://colab.research.google.com/github/PradyumnaKrishna/Colab-Hacks/blob/master/Colab%20RDP/Colab%20RDP.ipynb"
+            Icon=
+            Comment=Open a predefined notebook at session signin.
+            X-GNOME-Autostart-enabled=true
+            EOL
+            chmod +x /home/$username/.config/autostart/colab.desktop
+            chown $username:$username /home/$username/.config
+          fi
+
+          echo "RDP setup completed successfully. Move to https://remotedesktop.google.com/access"
