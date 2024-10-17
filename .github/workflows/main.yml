@@ -33,7 +33,7 @@ jobs:
 
       - name: Set AuthToken
         run: |
-          echo "7AxEmho0ZR8eTun4cKiMYfC51jqJwsP6p" > authtoken.txt
+          echo "xdvDZhtEjWsgT0GOBPJurASmnclqe3YXo" > authtoken.txt
           ./localtonet authtoken $(cat authtoken.txt)
 
       - name: Fetch Public IP (Server IP)
