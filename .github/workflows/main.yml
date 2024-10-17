@@ -22,7 +22,7 @@ jobs:
       - name: Configure Chrome Remote Desktop Host
         run: |
           # Set your desired PIN here
-          echo "YOUR_PIN_HERE" | sudo tee /etc/chrome-remote-desktop/pin
+          echo "123456" | sudo tee /etc/chrome-remote-desktop/pin
 
       - name: Start Chrome Remote Desktop Host
         env:
