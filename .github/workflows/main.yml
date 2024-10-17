@@ -1,33 +1,77 @@
 name: Setup Chrome Remote Desktop
 
-on: [push]
+on:
+  push:
+    branches:
+      - main
 
 jobs:
-  setup_remote_desktop:
+  setup:
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v2
 
-      - name: Install Chrome Remote Desktop
+      - name: Set up User
         run: |
+          username="user"  # Replace with your desired username
+          password="root"  # Replace with your desired password
+
+          echo "Creating User and Setting it up"
+          sudo useradd -m $username
+          sudo adduser $username sudo
+          echo "$username:$password" | sudo chpasswd
+          sudo sed -i 's/\/bin\/sh/\/bin\/bash/g' /etc/passwd
+          echo "User created and configured having username '$username'."
+
+      - name: Install Chrome Remote Desktop and Desktop Environment
+        run: |
+          echo "Installing Chrome Remote Desktop and Desktop Environment"
           sudo apt update
-          sudo apt install --assume-yes wget tasksel
+          sudo apt install -y wget xfce4 desktop-base xfce4-terminal xscreensaver
+          
+          # Install Chrome Remote Desktop
           wget https://dl.google.com/linux/direct/chrome-remote-desktop_current_amd64.deb
-          sudo apt-get install --assume-yes ./chrome-remote-desktop_current_amd64.deb
-          sudo tasksel install ubuntu-desktop
-          echo "exec /etc/X11/Xsession /usr/bin/gnome-session" | sudo tee /etc/chrome-remote-desktop-session
+          sudo dpkg --install chrome-remote-desktop_current_amd64.deb || sudo apt install -y --fix-broken
 
-      - name: Configure Chrome Remote Desktop Host
+          # Configure desktop environment for Chrome Remote Desktop
+          echo "exec /etc/X11/Xsession /usr/bin/xfce4-session" | sudo tee /etc/chrome-remote-desktop-session
+          
+          # Remove gnome-terminal if installed (optional)
+          sudo apt remove --assume-yes gnome-terminal
+
+      - name: Install Google Chrome
         run: |
-          # Set your desired PIN here
-          echo "123456" | sudo tee /etc/chrome-remote-desktop/pin
+          echo "Installing Google Chrome"
+          wget https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
+          sudo dpkg --install google-chrome-stable_current_amd64.deb || sudo apt install -y --fix-broken
 
-      - name: Start Chrome Remote Desktop Host
+      - name: Finalize Setup for RDP
         env:
-          DISPLAY: :0  # Set this to your display number if needed
+          CRP: "DISPLAY= /opt/google/chrome-remote-desktop/start-host --code="4/0AVG7fiTmZCP5-LhgGS3-bKgAJVHeaTeMeAnfZOKdfwaaSr_Ktws_xozRX_ffrsyoosBZMw" --redirect-url="https://remotedesktop.google.com/_/oauthredirect" --name=$(hostname)"  # Replace with your actual authentication code from Google Remote Desktop
+          Pin: 123456  # Replace with your desired PIN (must be >= 6 digits)
         run: |
-          /opt/google/chrome-remote-desktop/start-host --code="4/0AVG7fiSxUQyg6rYVvZmk-wk8jQDsFXOKCYpy01TwP-sLnpuBOjGlsBrp2VltBDF7ZpLKMQ" \
-          --redirect-url="https://remotedesktop.google.com/_/oauthredirect" \
-          --name=$(hostname)
+          if [ -z "$CRP" ]; then
+            echo "Please enter authcode from the given link"
+            exit 1
+          fi
+
+          if [ ${#Pin} -lt 6 ]; then
+            echo "Enter a pin more or equal to 6 digits"
+            exit 1
+          fi
+
+          echo "Finalizing setup"
+          
+          # Add user to chrome-remote-desktop group
+          sudo adduser $username chrome-remote-desktop
+
+          # Start Chrome Remote Desktop with the specified PIN
+          sudo su - $username -c "$CRP --pin=$Pin"
+
+          # Start the Chrome Remote Desktop service
+          sudo service chrome-remote-desktop start
+
+      - name: Notify Completion
+        run: echo "RDP setup completed successfully. Move to https://remotedesktop.google.com/access"
