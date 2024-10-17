@@ -19,6 +19,11 @@ jobs:
           sudo tasksel install ubuntu-desktop
           echo "exec /etc/X11/Xsession /usr/bin/gnome-session" | sudo tee /etc/chrome-remote-desktop-session
 
+      - name: Configure Chrome Remote Desktop Host
+        run: |
+          # Set your desired PIN here
+          echo "YOUR_PIN_HERE" | sudo tee /etc/chrome-remote-desktop/pin
+
       - name: Start Chrome Remote Desktop Host
         env:
           DISPLAY: :0  # Set this to your display number if needed
