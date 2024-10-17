@@ -1,67 +1,38 @@
-name: Setup RDP with Chrome Remote Desktop
+name: Setup RDP with CRP Secret
 
-on:
-  push:
-  workflow_dispatch:
+on: [push]
 
 jobs:
-  setup:
+  setup-rdp:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Create User
-        run: |
-          username="user" # Change this to your desired username
-          password="root" # Change this to your desired password
-          
-          echo "Creating User and Setting it up"
-          sudo useradd -m $username
-          echo "$username:$password" | sudo chpasswd
-          sudo usermod -aG sudo $username
-          
-          # Change default shell from sh to bash
-          sudo chsh -s /bin/bash $username
+    - name: Checkout repository
+      uses: actions/checkout@v3
 
-      - name: Install Chrome Remote Desktop
-        run: |
-          echo "Installing Chrome Remote Desktop"
-          sudo apt update
-          sudo apt install --assume-yes wget xfce4 desktop-base xfce4-terminal xscreensaver
+    - name: Setup Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.x'
 
-          # Download and install Chrome Remote Desktop
-          wget https://dl.google.com/linux/direct/chrome-remote-desktop_current_amd64.deb
-          sudo dpkg --install chrome-remote-desktop_current_amd64.deb || sudo apt install --assume-yes --fix-broken
+    - name: Install Dependencies
+      run: |
+        sudo apt update
+        sudo apt install -y xfce4 xfce4-terminal chrome-remote-desktop
 
-      - name: Configure Desktop Environment
-        run: |
-          echo "Configuring Desktop Environment"
-          echo "exec /etc/X11/Xsession /usr/bin/xfce4-session" | sudo tee /etc/chrome-remote-desktop-session
-          
-          # Disable lightdm service if it exists
-          sudo systemctl disable lightdm.service || true
+    - name: Create User and Configure
+      run: |
+        sudo useradd -m ${{ secrets.USERNAME }}
+        echo "${{ secrets.USERNAME }}:${{ secrets.PASSWORD }}" | sudo chpasswd
+        sudo usermod -aG sudo ${{ secrets.USERNAME }}
 
-      - name: Install Google Chrome
-        run: |
-          echo "Installing Google Chrome"
-          wget https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
-          sudo dpkg --install google-chrome-stable_current_amd64.deb || sudo apt install --assume-yes --fix-broken
+    - name: Configure RDP
+      run: |
+        sudo systemctl start chrome-remote-desktop
+        echo "exec /etc/X11/Xsession /usr/bin/xfce4-session" > /etc/chrome-remote-desktop-session
+        sudo su - ${{ secrets.USERNAME }} -c "${{ secrets.CRP }} --pin=${{ secrets.PIN }}"
 
-      - name: Start Chrome Remote Desktop Host
-        env:
-          CRP: "DISPLAY= /opt/google/chrome-remote-desktop/start-host --code=\"YOUR_AUTH_CODE\" --redirect-url=\"https://remotedesktop.google.com/_/oauthredirect\" --name=$(hostname)" # Replace YOUR_AUTH_CODE with the actual code.
-          PIN: "123456" # Set your desired PIN here.
-        run: |
-          echo "Starting Chrome Remote Desktop"
-          
-          # Add user to chrome-remote-desktop group
-          sudo adduser $username chrome-remote-desktop
-
-          # Start the host with the provided PIN
-          sudo -u $username bash -c "$CRP --pin=$PIN"
-          
-          # Start the service
-          sudo service chrome-remote-desktop start
-
-      - name: Finalize Setup
-        run: |
-          echo "RDP setup completed. You can access it via Google Remote Desktop."
+    - name: Finish Setup
+      run: |
+        sudo systemctl restart chrome-remote-desktop
+        echo "RDP Setup Complete"
