@@ -1,87 +1,70 @@
-name: Setup RDP and User Creation
+name: RDP_Setup
 
-on: 
-  push:
-    branches:
-      - main
+on: [push]
 
 jobs:
-  setup-rdp:
+  create_user_and_setup_rdp:
     runs-on: ubuntu-latest
+
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v2
+    - name: Create User and Configure
+      run: |
+        echo "Creating User and Setting it up"
+        username=user
+        password=root
+        sudo useradd -m $username
+        sudo adduser $username sudo
+        echo "$username:$password" | sudo chpasswd
+        sudo sed -i 's/\/bin\/sh/\/bin\/bash/g' /etc/passwd
+        echo "User created and configured with username $username and password $password"
+    
+    - name: Install RDP
+      run: |
+        echo "Installing RDP, this may take 4-5 minutes"
+        sudo apt update
+        sudo wget https://dl.google.com/linux/direct/chrome-remote-desktop_current_amd64.deb
+        sudo dpkg --install chrome-remote-desktop_current_amd64.deb
+        sudo apt install --assume-yes --fix-broken
 
-      - name: Create User
-        run: |
-          USERNAME="user"
-          PASSWORD="root"
-          echo "Creating User and Setting it up"
-          
-          # Creation of user
-          sudo useradd -m $USERNAME
-          
-          # Add user to sudo group
-          sudo usermod -aG sudo $USERNAME
-          
-          # Set password for user
-          echo "$USERNAME:$PASSWORD" | sudo chpasswd
-          
-          # Change default shell to bash
-          sudo sed -i 's/\/bin\/sh/\/bin\/bash/g' /etc/passwd
+    - name: Install Desktop Environment
+      run: |
+        echo "Installing Desktop Environment"
+        sudo apt install --assume-yes xfce4 desktop-base xfce4-terminal
+        sudo bash -c 'echo "exec /etc/X11/Xsession /usr/bin/xfce4-session" > /etc/chrome-remote-desktop-session'
+        sudo apt remove --assume-yes gnome-terminal
+        sudo apt install --assume-yes xscreensaver
+        sudo systemctl disable lightdm.service
 
-      - name: Install Chrome Remote Desktop
-        run: |
-          sudo apt update
-          wget https://dl.google.com/linux/direct/chrome-remote-desktop_current_amd64.deb
-          sudo dpkg --install chrome-remote-desktop_current_amd64.deb
-          sudo apt install --assume-yes --fix-broken
+    - name: Install Google Chrome
+      run: |
+        echo "Installing Google Chrome"
+        sudo wget https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
+        sudo dpkg --install google-chrome-stable_current_amd64.deb
+        sudo apt install --assume-yes --fix-broken
 
-      - name: Install Desktop Environment
-        run: |
-          export DEBIAN_FRONTEND=noninteractive
-          sudo apt install --assume-yes xfce4 desktop-base xfce4-terminal
-          sudo bash -c 'echo "exec /etc/X11/Xsession /usr/bin/xfce4-session" > /etc/chrome-remote-desktop-session'
-          sudo apt remove --assume-yes gnome-terminal
-          sudo apt install --assume-yes xscreensaver
-          sudo systemctl disable lightdm.service
+    - name: Finalize RDP Setup
+      run: |
+        echo "Finalizing RDP Setup"
+        autostart=false
+        username=user
+        CRP="DISPLAY= /opt/google/chrome-remote-desktop/start-host --code="4/0AVG7fiRIpd2yulKy1830-Xke50yPUnOOeeOR0ezzqZcglP1y3R9KIDQiMSUJanpJJekv6A" --redirect-url="https://remotedesktop.google.com/_/oauthredirect" --name=$(hostname)"
+        Pin=123456
 
-      - name: Install Google Chrome
-        run: |
-          wget https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
-          sudo dpkg --install google-chrome-stable_current_amd64.deb
-          sudo apt install --assume-yes --fix-broken
+        if $autostart; then
+          sudo mkdir -p /home/$username/.config/autostart
+          link="https://colab.research.google.com/github/PradyumnaKrishna/Colab-Hacks/blob/master/Colab%20RDP/Colab%20RDP.ipynb"
+          colab_autostart="[Desktop Entry]\nType=Application\nName=Colab\nExec=sh -c 'sensible-browser $link'\nIcon=\nComment=Open a predefined notebook at session signin.\nX-GNOME-Autostart-enabled=true"
+          echo -e $colab_autostart | sudo tee /home/$username/.config/autostart/colab.desktop
+          sudo chmod +x /home/$username/.config/autostart/colab.desktop
+          sudo chown $username:$username /home/$username/.config
+        fi
 
-      - name: Finalize Setup
-        run: |
-          USERNAME="user"
-          PIN="123456"
-          
-          sudo adduser $USERNAME chrome-remote-desktop
-          
-          # Autostart config (optional)
-          if [ "true" == "true" ]; then
-            mkdir -p /home/$USERNAME/.config/autostart
-            cat <<EOL > /home/$USERNAME/.config/autostart/colab.desktop
-            [Desktop Entry]
-            Type=Application
-            Name=Colab
-            Exec=sh -c "sensible-browser https://colab.research.google.com/github/PradyumnaKrishna/Colab-Hacks/blob/master/Colab%20RDP/Colab%20RDP.ipynb"
-            Icon=
-            Comment=Open a predefined notebook at session signin.
-            X-GNOME-Autostart-enabled=true
-            EOL
-            chmod +x /home/$USERNAME/.config/autostart/colab.desktop
-            chown $USERNAME:$USERNAME /home/$USERNAME/.config
-          fi
-          
-          # Start Chrome Remote Desktop service
-          sudo service chrome-remote-desktop start
+        sudo adduser $username chrome-remote-desktop
+        if [[ ! -z "$CRP" ]]; then
+          sudo su - $username -c "$CRP --pin=$Pin"
+        else
+          echo "Please enter authcode from the given link"
+        fi
+        sudo service chrome-remote-desktop start
 
-      - name: Register Chrome Remote Desktop
-        run: |
-          USERNAME="user"
-          CRP="DISPLAY= /opt/google/chrome-remote-desktop/start-host --code="4/0AVG7fiTXdBOEYZOiDrezJxM3xwi9Aly0_8VAlapELWApcPzkP_T6k23FpGhODa27C49kQA" --redirect-url="https://remotedesktop.google.com/_/oauthredirect" --name=$(hostname)"
-          PIN="123456"
-          
-          sudo su - $USERNAME -c "$CRP --pin=$PIN"
+        echo "Finished Successfully"
