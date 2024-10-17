@@ -1,37 +1,33 @@
-name: Setup Localtonet for RDP
+name: Windows 10 RDP Setup
 
-on: 
-  push:
-    branches:
-      - main
+on: [push, workflow_dispatch]
 
 jobs:
-  setup_localtonet:
-    runs-on: ubuntu-latest
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 9999
+
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v2
-
-      - name: Install dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y unzip
-
       - name: Download Localtonet
-        run: |
-          wget https://localtonet.com/download/localtonet-linux-x64.zip
-          unzip localtonet-linux-x64.zip
-          chmod +x ./localtonet
+        run: Invoke-WebRequest https://localtonet.com/download/localtonet-win-64.zip -OutFile localtonet.zip
 
-      - name: Set AuthToken
-        run: |
-          echo "4uSym0JBtVPHTN9ZY7soU8WzDdi6rafkL" > authtoken.txt
-          ./localtonet authtoken $(cat authtoken.txt)
+      - name: Extract Localtonet
+        run: Expand-Archive localtonet.zip -DestinationPath ./localtonet
 
-      - name: Start RDP Tunnel
+      - name: Set Localtonet Auth Token
+        run: .\localtonet\localtonet.exe authtoken $Env:LOCALTONET_AUTH_TOKEN
+        env:
+          LOCALTONET_AUTH_TOKEN: "4uSym0JBtVPHTN9ZY7soU8WzDdi6rafkL"  # Your provided token
+
+      - name: Enable RDP
         run: |
-          ./localtonet tcp 3389
-          
-      - name: Get Public Address
-        run: |
-          ./localtonet list
+          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -name "fDenyTSConnections" -Value 0
+          Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
+          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -name "UserAuthentication" -Value 1
+          Set-LocalUser -Name "runneradmin" -Password (ConvertTo-SecureString -AsPlainText "@cyb3rking" -Force)
+
+      - name: Start Localtonet RDP Tunnel
+        run: .\localtonet\localtonet.exe tcp 3389
+
+      - name: Display Localtonet URL
+        run: .\localtonet\localtonet.exe list
