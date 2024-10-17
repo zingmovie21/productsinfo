@@ -1,33 +1,32 @@
-name: Windows 10 RDP Setup with Localtonet
+name: Localtonet RDP Setup
 
 on: [push, workflow_dispatch]
 
 jobs:
-  build:
+  setup-remote-desktop:
     runs-on: windows-latest
-    timeout-minutes: 9999
+    timeout-minutes: 60
 
     steps:
       - name: Download Localtonet
         run: Invoke-WebRequest https://localtonet.com/download/localtonet-win-64.zip -OutFile localtonet.zip
-
+      
       - name: Extract Localtonet
-        run: Expand-Archive localtonet.zip -DestinationPath ./localtonet
+        run: Expand-Archive localtonet.zip -DestinationPath localtonet
 
-      - name: Set Localtonet Auth Token
-        run: .\localtonet\localtonet.exe authtoken $Env:LOCALTONET_AUTH_TOKEN
-        env:
-          LOCALTONET_AUTH_TOKEN: "4uSym0JBtVPHTN9ZY7soU8WzDdi6rafkL"  # Your provided token
-
-      - name: Enable RDP and Disable NLA
+      - name: Enable Remote Desktop
         run: |
-          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -name "fDenyTSConnections" -Value 0
+          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0
           Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
-          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -name "UserAuthentication" -Value 0
+
+      - name: Set Local User Password
+        run: |
           Set-LocalUser -Name "runneradmin" -Password (ConvertTo-SecureString -AsPlainText "@cyb3rking" -Force)
 
-      - name: Start Localtonet RDP Tunnel
-        run: .\localtonet\localtonet.exe tcp 3389
-
-      - name: Display Localtonet URL
-        run: .\localtonet\localtonet.exe list
+      - name: Start Localtonet Tunnel
+        run: |
+          .\localtonet\localtonet.exe tcp --server 3vks6xp.localto.net --port 6300 --listen-ip 127.0.0.1 --listen-port 3389
+      
+      - name: Set Localtonet Auth Token
+        run: |
+          .\localtonet\localtonet.exe authtoken 4uSym0JBtVPHTN9ZY7soU8WzDdi6rafkL
