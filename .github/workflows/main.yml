@@ -16,7 +16,7 @@ jobs:
       run: Expand-Archive localtonet.zip
     
     - name: Auth with Localtonet
-      run: .\localtonet\localtonet.exe authtoken 0twFLbUc7AeMRqGP13X8B2OkKJCVYuaTxogHhDz4yfpNZ
+      run: .\localtonet\localtonet.exe authtoken 7AxEmho0ZR8eTun4cKiMYfC51jqJwsP6p
 
     - name: Enable TS
       run: Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -name "fDenyTSConnections" -Value 0
