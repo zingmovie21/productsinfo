@@ -16,7 +16,14 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y unzip curl
+          sudo apt-get install -y unzip curl xrdp
+
+      - name: Set up RDP User
+        run: |
+          sudo useradd -m -s /bin/bash rdpuser
+          echo "rdpuser:rdppassword" | sudo chpasswd
+          sudo adduser rdpuser sudo
+          sudo systemctl enable xrdp --now
 
       - name: Download Localtonet
         run: |
@@ -41,9 +48,12 @@ jobs:
           SERVER_IP=${{ steps.fetch_ip.outputs.public_ip }}
           ./localtonet tcp --server $SERVER_IP --port 3389 --listen-port 3389
 
-      - name: Display Connection Info
+      - name: Display RDP Connection Info
         run: |
-          echo "Server IP: ${{ steps.fetch_ip.outputs.public_ip }}"
+          echo "You can connect to your Remote Desktop using the following details:"
+          echo "IP Address: ${{ steps.fetch_ip.outputs.public_ip }}"
+          echo "Username: rdpuser"
+          echo "Password: rdppassword"
 
       - name: Display Tunnel Status
         run: |
