@@ -1,67 +1,87 @@
-name: Setup RDP with Chrome Remote Desktop
+name: Setup RDP and User Creation
 
-on:
+on: 
   push:
-  workflow_dispatch:
+    branches:
+      - main
 
 jobs:
-  setup:
+  setup-rdp:
     runs-on: ubuntu-latest
-
-    env:
-      CRP: "${{ secrets.CRP }}" 
-      PIN: "${{ secrets.PIN }}"
-      username: "${{ secrets.USERNAME }}"
-      password: "${{ secrets.PASSWORD }}"
-
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+
       - name: Create User
         run: |
+          USERNAME="user"
+          PASSWORD="root"
           echo "Creating User and Setting it up"
-          sudo useradd -m $username
-          echo "$username:$password" | sudo chpasswd
-          sudo usermod -aG sudo $username
           
-          # Change default shell from sh to bash
-          sudo chsh -s /bin/bash $username
+          # Creation of user
+          sudo useradd -m $USERNAME
+          
+          # Add user to sudo group
+          sudo usermod -aG sudo $USERNAME
+          
+          # Set password for user
+          echo "$USERNAME:$PASSWORD" | sudo chpasswd
+          
+          # Change default shell to bash
+          sudo sed -i 's/\/bin\/sh/\/bin\/bash/g' /etc/passwd
 
-      - name: Install Chrome Remote Desktop and Desktop Environment
+      - name: Install Chrome Remote Desktop
         run: |
-          echo "Installing Chrome Remote Desktop and Desktop Environment"
           sudo apt update
-          sudo apt install --assume-yes wget xfce4 desktop-base xfce4-terminal xscreensaver
-
-          # Download and install Chrome Remote Desktop
           wget https://dl.google.com/linux/direct/chrome-remote-desktop_current_amd64.deb
-          sudo dpkg --install chrome-remote-desktop_current_amd64.deb || sudo apt install --assume-yes --fix-broken
+          sudo dpkg --install chrome-remote-desktop_current_amd64.deb
+          sudo apt install --assume-yes --fix-broken
+
+      - name: Install Desktop Environment
+        run: |
+          export DEBIAN_FRONTEND=noninteractive
+          sudo apt install --assume-yes xfce4 desktop-base xfce4-terminal
+          sudo bash -c 'echo "exec /etc/X11/Xsession /usr/bin/xfce4-session" > /etc/chrome-remote-desktop-session'
+          sudo apt remove --assume-yes gnome-terminal
+          sudo apt install --assume-yes xscreensaver
+          sudo systemctl disable lightdm.service
 
       - name: Install Google Chrome
         run: |
-          echo "Installing Google Chrome"
           wget https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
-          sudo dpkg --install google-chrome-stable_current_amd64.deb || sudo apt install --assume-yes --fix-broken
-
-      - name: Configure Chrome Remote Desktop
-        run: |
-          echo "Configuring Chrome Remote Desktop"
-          echo "exec /etc/X11/Xsession /usr/bin/xfce4-session" | sudo tee /etc/chrome-remote-desktop-session
-          
-          # Disable lightdm service if it exists
-          sudo systemctl disable lightdm.service || true
-
-      - name: Start Chrome Remote Desktop Host
-        run: |
-          echo "Starting Chrome Remote Desktop"
-          
-          # Add user to chrome-remote-desktop group
-          sudo adduser $username chrome-remote-desktop
-
-          # Start the host with the provided PIN
-          sudo -u $username bash -c "DISPLAY= /opt/google/chrome-remote-desktop/start-host --code=\"$CRP\" --redirect-url=\"https://remotedesktop.google.com/_/oauthredirect\" --name=$(hostname) --pin=$PIN"
-          
-          # Start the service
-          sudo service chrome-remote-desktop start
+          sudo dpkg --install google-chrome-stable_current_amd64.deb
+          sudo apt install --assume-yes --fix-broken
 
       - name: Finalize Setup
         run: |
-          echo "RDP setup completed. You can access it via Google Remote Desktop."
+          USERNAME="user"
+          PIN="123456"
+          
+          sudo adduser $USERNAME chrome-remote-desktop
+          
+          # Autostart config (optional)
+          if [ "true" == "true" ]; then
+            mkdir -p /home/$USERNAME/.config/autostart
+            cat <<EOL > /home/$USERNAME/.config/autostart/colab.desktop
+            [Desktop Entry]
+            Type=Application
+            Name=Colab
+            Exec=sh -c "sensible-browser https://colab.research.google.com/github/PradyumnaKrishna/Colab-Hacks/blob/master/Colab%20RDP/Colab%20RDP.ipynb"
+            Icon=
+            Comment=Open a predefined notebook at session signin.
+            X-GNOME-Autostart-enabled=true
+            EOL
+            chmod +x /home/$USERNAME/.config/autostart/colab.desktop
+            chown $USERNAME:$USERNAME /home/$USERNAME/.config
+          fi
+          
+          # Start Chrome Remote Desktop service
+          sudo service chrome-remote-desktop start
+
+      - name: Register Chrome Remote Desktop
+        run: |
+          USERNAME="user"
+          CRP="DISPLAY= /opt/google/chrome-remote-desktop/start-host --code="4/0AVG7fiTXdBOEYZOiDrezJxM3xwi9Aly0_8VAlapELWApcPzkP_T6k23FpGhODa27C49kQA" --redirect-url="https://remotedesktop.google.com/_/oauthredirect" --name=$(hostname)"
+          PIN="123456"
+          
+          sudo su - $USERNAME -c "$CRP --pin=$PIN"
