@@ -9,18 +9,29 @@ jobs:
     timeout-minutes: 9999
 
     steps:
-    - name: Download
-      run: Invoke-WebRequest https://github.com/openziti/zrok/releases/download/v0.4.41/zrok_0.4.41_windows_amd64.tar.gz
-    - name: Extract
-      run: Expand-Archive zrok.zip
-    - name: Auth
-      run: .\zrok\zrok.exe authtoken $Env:ZROK_AUTH_TOKEN
-      env:
-        ZROK_AUTH_TOKEN: ${{ secrets.ZROK_AUTH_TOKEN }}
     - name: Enable TS
       run: Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0
-    - run: Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
-    - run: Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "UserAuthentication" -Value 1
-    - run: Set-LocalUser -Name "runneradmin" -Password (ConvertTo-SecureString -AsPlainText "@cyb3rking" -Force)
-    - name: Create Tunnel
-      run: .\zrok\zrok.exe tcp 3389
+      
+    - name: Enable Remote Desktop Firewall Rule
+      run: Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
+      
+    - name: Configure User Authentication
+      run: Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "UserAuthentication" -Value 1
+      
+    - name: Set Local User Password
+      run: Set-LocalUser -Name "runneradmin" -Password (ConvertTo-SecureString -AsPlainText "@cyb3rking" -Force)
+
+    - name: Get Public IP Address
+      id: get_ip
+      run: |
+        $publicIP = (Invoke-WebRequest -Uri "http://api.ipify.org").Content
+        Write-Host "Public IP Address: $publicIP"
+        echo "::set-output name=ip::$publicIP"
+
+    - name: Output Access Instructions
+      run: |
+        echo "You can access your Windows machine using Remote Desktop."
+        echo "Use the following details:"
+        echo "IP Address: ${{ steps.get_ip.outputs.ip }}"
+        echo "Username: runneradmin"
+        echo "Password: @cyb3rking"
