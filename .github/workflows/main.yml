@@ -10,7 +10,7 @@ jobs:
 
     steps:
     - name: Download
-      run: Invoke-WebRequest https://zrok.io/latest/zrok-windows-amd64.zip -OutFile zrok.zip
+      run: Invoke-WebRequest https://github.com/openziti/zrok/releases/download/v0.4.41/zrok_0.4.41_windows_amd64.tar.gz -OutFile zrok.zip
     - name: Extract
       run: Expand-Archive zrok.zip
     - name: Auth
