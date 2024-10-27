@@ -1,63 +1,24 @@
 name: MacRDP
-on:
+on: 
   workflow_dispatch:
-
 jobs:
   build:
     name: MacRDP
     runs-on: macos-latest
     
-    env:
-      LOCALTOKENT_AUTH_TOKEN: "Vzn1jJiltAeaf5vS9ouTZmCL0PDwYd4gE"  # Add the token directly here
-
-    steps:
-    - name: Download Localtonet
-      run: |
-        # Download Localtonet for macOS
-        curl https://localtonet.com/download/localtonet-osx-64.zip -o localtonet-osx-64.zip
-        unzip localtonet-osx-64.zip
-        sudo chmod +x localtonet
-
-    - name: Setup and Start Localtonet Tunnel
-      run: |
-        # Authenticate and start Localtonet on port 3389
-        ./localtonet authtoken "$LOCALTOKENT_AUTH_TOKEN"
-        ./localtonet tcp 3389 &
-
+    steps:                 
     - name: Enabling Remote Access
+      env:
+        LOCALTONET_AUTH_TOKEN: Vzn1jJiltAeaf5vS9ouTZmCL0PDwYd4gE  # Update to use Localtonet token
       run: |
-        # Disable Spotlight indexing
-        sudo mdutil -i off -a
-        
-        # Create a new user with the required credentials
-        sudo dscl . -create /Users/curseofwitcher
-        sudo dscl . -create /Users/curseofwitcher UserShell /bin/bash
-        sudo dscl . -create /Users/curseofwitcher RealName "Curse Of Witcher"
-        sudo dscl . -create /Users/curseofwitcher UniqueID 1001
-        sudo dscl . -create /Users/curseofwitcher PrimaryGroupID 80
-        sudo dscl . -create /Users/curseofwitcher NFSHomeDirectory /Users/curseofwitcher
-        sudo dscl . -passwd /Users/curseofwitcher Howsthejosh@149
-        sudo createhomedir -c -u curseofwitcher > /dev/null
-        sudo dscl . -append /Groups/admin GroupMembership curseofwitcher
-
-        # Enable VNC and configure remote access for all users
-        sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart -configure -allowAccessFor -allUsers -privs -all
-        sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart -configure -clientopts -setvnclegacy -vnclegacy yes
-        echo "curseofwitcherRDP" | perl -we 'BEGIN { @k = unpack "C*", pack "H*", "1734516E8BA8C5E2FF1C39567390ADCA"}; $_ = <>; chomp; s/^(.{8}).*/$1/; @p = unpack "C*", $_; foreach (@k) { printf "%02X", $_ ^ (shift @p || 0) }; print "\n"' | sudo tee /Library/Preferences/com.apple.VNCSettings.txt
-        
-        # Restart Remote Management and activate it
-        sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart -restart -agent -console
-        sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart -activate
-
-    - name: Log In Details to VNC Server
+          curl -s -o start.sh -L "https://raw.githubusercontent.com/JohnnyNetsec/github-vm/main/mac/start.sh"
+          chmod +x start.sh
+          bash start.sh "Vzn1jJiltAeaf5vS9ouTZmCL0PDwYd4gE"
+          
+    - name: Log In Details To VNC Server
       run: |
-        # Display the public URL and login details
-        echo ".........................................................."
-        echo "Fetching Public URL for Localtonet..."
-        echo "IP:"
-        curl -s http://localhost:3389/api/tunnels | grep -o '"public_url":"[^"]*' | sed 's/"public_url":"//'
-        echo "Username: curseofwitcher"
-        echo "Password: Howsthejosh@149"
-
-    - name: MacOS System Running...
+         chmod +x login.sh
+         bash login.sh
+         
+    - name: MacOS System running...
       uses: mxschmitt/action-tmate@v2
