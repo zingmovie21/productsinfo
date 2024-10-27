@@ -1,24 +1,33 @@
-name: MacRDP
-on: 
-  workflow_dispatch:
+name: Windows 10 RDP Setup with Localtonet
+
+on: [push, workflow_dispatch]
+
 jobs:
   build:
-    name: MacRDP
-    runs-on: macos-latest
-    
-    steps:                 
-    - name: Enabling Remote Access
-      env:
-        LOCALTONET_AUTH_TOKEN: Vzn1jJiltAeaf5vS9ouTZmCL0PDwYd4gE  # Update to use Localtonet token
-      run: |
-          curl -s -o start.sh -L "https://raw.githubusercontent.com/JohnnyNetsec/github-vm/main/mac/start.sh"
-          chmod +x start.sh
-          bash start.sh "Vzn1jJiltAeaf5vS9ouTZmCL0PDwYd4gE"
-          
-    - name: Log In Details To VNC Server
-      run: |
-         chmod +x login.sh
-         bash login.sh
-         
-    - name: MacOS System running...
-      uses: mxschmitt/action-tmate@v2
+    runs-on: windows-latest
+    timeout-minutes: 9999
+
+    steps:
+      - name: Download Localtonet
+        run: Invoke-WebRequest https://localtonet.com/download/localtonet-win-64.zip -OutFile localtonet.zip
+
+      - name: Extract Localtonet
+        run: Expand-Archive localtonet.zip -DestinationPath ./localtonet
+
+      - name: Enable RDP and Disable NLA
+        run: |
+          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -name "fDenyTSConnections" -Value 0
+          Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
+          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -name "UserAuthentication" -Value 0
+          Set-LocalUser -Name "curseofwitcher" -Password (ConvertTo-SecureString -AsPlainText "Arevedya@1234" -Force)
+      
+      - name: Set Localtonet Auth Token
+        run: .\localtonet\localtonet.exe authtoken $Env:LOCALTONET_AUTH_TOKEN
+        env:
+          LOCALTONET_AUTH_TOKEN: "Vzn1jJiltAeaf5vS9ouTZmCL0PDwYd4gE"  # Your provided token
+
+      - name: Start Localtonet RDP Tunnel
+        run: .\localtonet\localtonet.exe tcp 3389
+
+      - name: Display Localtonet URL
+        run: .\localtonet\localtonet.exe list
