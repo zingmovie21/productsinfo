@@ -36,7 +36,7 @@ jobs:
     - name: Start Localtonet with Authentication
       run: |
         ./localtonet authtoken jraqLE0YS2Ncev4fdhXy85uCB1UJoTiKM  # Replace with your actual token
-        ./localtonet tcp 5900 --region=in &
+        ./localtonet tcp 3389 --region=in &
 
     - name: Log In Details To VNC Server
       run: |
