@@ -7,6 +7,9 @@ jobs:
     name: MacRDP
     runs-on: macos-latest
     
+    env:
+      LOCALTOKENT_AUTH_TOKEN: "Vzn1jJiltAeaf5vS9ouTZmCL0PDwYd4gE"  # Add the token directly here
+
     steps:
     - name: Download Localtonet
       run: |
@@ -16,8 +19,6 @@ jobs:
         sudo chmod +x localtonet
 
     - name: Setup and Start Localtonet Tunnel
-      env:
-        LOCALTOKENT_AUTH_TOKEN: Vzn1jJiltAeaf5vS9ouTZmCL0PDwYd4gE
       run: |
         # Authenticate and start Localtonet on port 3389
         ./localtonet authtoken "$LOCALTOKENT_AUTH_TOKEN"
