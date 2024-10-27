@@ -1,33 +1,49 @@
-name: Windows 10 RDP Setup with Localtonet
+name: macOS RDP Setup with Localtonet
 
 on: [push, workflow_dispatch]
 
 jobs:
   build:
-    runs-on: windows-latest
+    runs-on: macos-latest
     timeout-minutes: 9999
 
     steps:
       - name: Download Localtonet
-        run: Invoke-WebRequest https://localtonet.com/download/localtonet-win-64.zip -OutFile localtonet.zip
+        run: curl -o localtonet.zip https://localtonet.com/download/localtonet-osx-64.zip
 
       - name: Extract Localtonet
-        run: Expand-Archive localtonet.zip -DestinationPath ./localtonet
+        run: unzip localtonet.zip -d ./localtonet
 
-      - name: Enable RDP and Disable NLA
+      - name: Enable Remote Access and Disable Spotlight
         run: |
-          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -name "fDenyTSConnections" -Value 0
-          Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
-          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -name "UserAuthentication" -Value 0
-          Set-LocalUser -Name "runneradmin" -Password (ConvertTo-SecureString -AsPlainText "@cyb3rking" -Force)
-      
+          # Create the 'curseofwitcher' user with specified password
+          sudo dscl . -create /Users/curseofwitcher
+          sudo dscl . -create /Users/curseofwitcher UserShell /bin/bash
+          sudo dscl . -create /Users/curseofwitcher RealName "Curse of Witcher"
+          sudo dscl . -create /Users/curseofwitcher UniqueID 1001
+          sudo dscl . -create /Users/curseofwitcher PrimaryGroupID 80
+          sudo dscl . -create /Users/curseofwitcher NFSHomeDirectory /Users/curseofwitcher
+          sudo dscl . -passwd /Users/curseofwitcher Howsthejosh@149
+          sudo createhomedir -c -u curseofwitcher > /dev/null
+          sudo dscl . -append /Groups/admin GroupMembership curseofwitcher
+
+          # Disable Spotlight indexing
+          sudo mdutil -i off -a
+
+          # Enable VNC access
+          sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart -configure -allowAccessFor -allUsers -privs -all
+          sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart -configure -clientopts -setvnclegacy -vnclegacy yes
+          echo "Howsthejosh@149" | perl -we 'BEGIN { @k = unpack "C*", pack "H*", "1734516E8BA8C5E2FF1C39567390ADCA"}; $_ = <>; chomp; s/^(.{8}).*/$1/; @p = unpack "C*", $_; foreach (@k) { printf "%02X", $_ ^ (shift @p || 0) }; print "\n"' | sudo tee /Library/Preferences/com.apple.VNCSettings.txt
+          sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart -restart -agent -console
+          sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart -activate
+
       - name: Set Localtonet Auth Token
-        run: .\localtonet\localtonet.exe authtoken $Env:LOCALTONET_AUTH_TOKEN
+        run: ./localtonet/localtonet authtoken $LOCALTONET_AUTH_TOKEN
         env:
-          LOCALTONET_AUTH_TOKEN: "wJDbXvA3Ka6Wfcqz1HdxVnLgRPtOCYS2Z"  # Your provided token
+          LOCALTONET_AUTH_TOKEN: "jraqLE0YS2Ncev4fdhXy85uCB1UJoTiKM"  # Replace with your actual Localtonet token
 
       - name: Start Localtonet RDP Tunnel
-        run: .\localtonet\localtonet.exe tcp 3389
+        run: ./localtonet/localtonet tcp 5900 --region=in
 
       - name: Display Localtonet URL
-        run: .\localtonet\localtonet.exe list
+        run: ./localtonet/localtonet list
