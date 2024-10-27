@@ -40,7 +40,7 @@ jobs:
       - name: Set Localtonet Auth Token
         run: ./localtonet/localtonet authtoken $LOCALTONET_AUTH_TOKEN
         env:
-          LOCALTONET_AUTH_TOKEN: "jraqLE0YS2Ncev4fdhXy85uCB1UJoTiKM"  # Replace with your actual Localtonet token
+          LOCALTONET_AUTH_TOKEN: "Vzn1jJiltAeaf5vS9ouTZmCL0PDwYd4gE"  # Replace with your actual Localtonet token
 
       - name: Start Localtonet RDP Tunnel
         run: ./localtonet/localtonet tcp 5900 --region=in
