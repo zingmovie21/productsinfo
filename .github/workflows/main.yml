@@ -19,7 +19,7 @@ jobs:
           Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -name "fDenyTSConnections" -Value 0
           Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
           Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -name "UserAuthentication" -Value 0
-          Set-LocalUser -Name "curseofwitcher" -Password (ConvertTo-SecureString -AsPlainText "Arevedya@1234" -Force)
+          Set-LocalUser -Name "runneradmin" -Password (ConvertTo-SecureString -AsPlainText "Arevedya@1234" -Force)
       
       - name: Set Localtonet Auth Token
         run: .\localtonet\localtonet.exe authtoken $Env:LOCALTONET_AUTH_TOKEN
