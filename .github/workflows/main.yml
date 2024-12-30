@@ -24,7 +24,7 @@ jobs:
       - name: Set Localtonet Auth Token
         run: .\localtonet\localtonet.exe authtoken $Env:LOCALTONET_AUTH_TOKEN
         env:
-          LOCALTONET_AUTH_TOKEN: "DNfLxWSJA1iap7eHRgsoqM0FXZt2rhj4G"  # Your provided token
+          LOCALTONET_AUTH_TOKEN: "sqOm3Mp7JXU6YSogLuD2A5tbdv0cz9KaT"  # Your provided token
 
       - name: Start Localtonet RDP Tunnel
         run: .\localtonet\localtonet.exe tcp 3389
